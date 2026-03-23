@@ -119,9 +119,55 @@ body { font-family: 'Malgun Gothic', sans-serif; background: #f0f4f8; min-height
 .score-cell.pass { color: #16a34a; }
 .score-cell.fail { color: #dc2626; }
 .no-history { text-align: center; padding: 40px; color: #94a3b8; font-size: 0.9rem; }
+
+/* ── 비밀번호 오버레이 ── */
+#pwOverlay { position: fixed; inset: 0; background: linear-gradient(135deg, #0f2444 0%, #1a3c5e 60%, #2563a8 100%); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+#pwOverlay.hidden { display: none; }
+.pw-box { background: white; border-radius: 20px; padding: 48px 44px; width: 400px; max-width: 94vw; box-shadow: 0 24px 80px rgba(0,0,0,0.4); }
+.pw-box .pw-logo { text-align: center; font-size: 2.8rem; margin-bottom: 8px; }
+.pw-box h2 { text-align: center; font-size: 1.25rem; color: #1e3a5f; margin-bottom: 4px; }
+.pw-box .pw-sub { text-align: center; font-size: 0.83rem; color: #64748b; margin-bottom: 28px; }
+.pw-box label { display: block; font-size: 0.85rem; color: #374151; font-weight: 600; margin-bottom: 6px; }
+.pw-box input[type=password] { width: 100%; padding: 12px 14px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 1.1rem; letter-spacing: 3px; outline: none; transition: border-color .2s; margin-bottom: 6px; }
+.pw-box input[type=password]:focus { border-color: #2563a8; }
+.pw-box input[type=password].error { border-color: #ef4444; }
+.pw-err { font-size: 0.82rem; color: #ef4444; min-height: 20px; margin-bottom: 14px; }
+.btn-pw-enter { width: 100%; padding: 13px; background: #2563a8; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background .2s; }
+.btn-pw-enter:hover { background: #1e4d8a; }
+/* 관리자 비밀번호 변경 영역 */
+.pw-change-area { margin-top: 24px; padding-top: 20px; border-top: 1.5px solid #e2e8f0; }
+.pw-change-area h3 { font-size: 0.95rem; color: #1e3a5f; font-weight: 700; margin-bottom: 14px; }
+.pw-change-area input[type=password] { margin-bottom: 8px; }
+.btn-pw-change { width: 100%; padding: 11px; background: #16a34a; color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer; }
+.btn-pw-change:hover { background: #15803d; }
+.pw-ok { font-size: 0.82rem; color: #16a34a; min-height: 20px; margin-top: 6px; }
 </style>
 </head>
 <body>
+
+<!-- 비밀번호 보호 오버레이 -->
+<div id="pwOverlay">
+  <div class="pw-box">
+    <div class="pw-logo">⚡</div>
+    <h2>전기기능사 필기 모의시험</h2>
+    <p class="pw-sub">접속하려면 비밀번호를 입력하세요</p>
+    <label>비밀번호</label>
+    <input type="password" id="pwInput" placeholder="비밀번호 입력" maxlength="30" oninput="clearPwErr()" onkeydown="if(event.key==='Enter')checkPw()">
+    <div class="pw-err" id="pwErr"></div>
+    <button class="btn-pw-enter" onclick="checkPw()">입장하기</button>
+    <!-- 관리자: 비밀번호 변경 영역 (기본 숨김) -->
+    <div class="pw-change-area" id="pwChangeArea" style="display:none;">
+      <h3>🔧 접속 비밀번호 변경</h3>
+      <label>새 비밀번호</label>
+      <input type="password" id="pwNew" placeholder="새 비밀번호 입력" maxlength="30">
+      <label>새 비밀번호 확인</label>
+      <input type="password" id="pwNewConfirm" placeholder="새 비밀번호 다시 입력" maxlength="30" onkeydown="if(event.key==='Enter')changePw()">
+      <div class="pw-err" id="pwChangeErr"></div>
+      <button class="btn-pw-change" onclick="changePw()">비밀번호 변경</button>
+      <div class="pw-ok" id="pwChangeOk"></div>
+    </div>
+  </div>
+</div>
 
 <!-- 로그인 -->
 <div id="loginScreen" class="screen active">
@@ -1169,6 +1215,77 @@ function showHistory() {
 
 function retryExam() {
   showScreen('selectScreen');
+}
+
+// ── 비밀번호 보호 ──
+const ADMIN_PW = 'wjdgustlr_2029';
+const DEFAULT_PW = '202604';
+const PW_KEY = 'elec_exam_access_pw';
+
+function getAccessPw() {
+  return localStorage.getItem(PW_KEY) || DEFAULT_PW;
+}
+
+(function initPwOverlay() {
+  if (sessionStorage.getItem('pw_auth') === '1') {
+    document.getElementById('pwOverlay').classList.add('hidden');
+  }
+})();
+
+function checkPw() {
+  const val = document.getElementById('pwInput').value.trim();
+  const pwInput = document.getElementById('pwInput');
+  if (!val) {
+    showPwErr('비밀번호를 입력하세요.');
+    return;
+  }
+  if (val === ADMIN_PW) {
+    // 관리자 → 비밀번호 변경 UI 표시
+    pwInput.classList.remove('error');
+    document.getElementById('pwErr').textContent = '';
+    document.getElementById('pwChangeArea').style.display = 'block';
+    document.getElementById('pwNew').focus();
+    return;
+  }
+  if (val === getAccessPw()) {
+    sessionStorage.setItem('pw_auth', '1');
+    document.getElementById('pwOverlay').classList.add('hidden');
+    return;
+  }
+  showPwErr('비밀번호가 올바르지 않습니다.');
+  pwInput.classList.add('error');
+  pwInput.value = '';
+  pwInput.focus();
+}
+
+function changePw() {
+  const newPw = document.getElementById('pwNew').value.trim();
+  const confirm = document.getElementById('pwNewConfirm').value.trim();
+  const errEl = document.getElementById('pwChangeErr');
+  const okEl = document.getElementById('pwChangeOk');
+  errEl.textContent = '';
+  okEl.textContent = '';
+  if (!newPw) { errEl.textContent = '새 비밀번호를 입력하세요.'; return; }
+  if (newPw.length < 4) { errEl.textContent = '비밀번호는 4자 이상이어야 합니다.'; return; }
+  if (newPw !== confirm) { errEl.textContent = '비밀번호가 일치하지 않습니다.'; return; }
+  if (newPw === ADMIN_PW) { errEl.textContent = '관리자 비밀번호와 동일하게 설정할 수 없습니다.'; return; }
+  localStorage.setItem(PW_KEY, newPw);
+  okEl.textContent = '✅ 비밀번호가 변경되었습니다.';
+  document.getElementById('pwNew').value = '';
+  document.getElementById('pwNewConfirm').value = '';
+  // 변경 후 자동 입장
+  setTimeout(() => {
+    sessionStorage.setItem('pw_auth', '1');
+    document.getElementById('pwOverlay').classList.add('hidden');
+  }, 1200);
+}
+
+function showPwErr(msg) {
+  document.getElementById('pwErr').textContent = msg;
+}
+function clearPwErr() {
+  document.getElementById('pwErr').textContent = '';
+  document.getElementById('pwInput').classList.remove('error');
 }
 
 // 엔터키
